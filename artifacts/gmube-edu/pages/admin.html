@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu - لوحة الإدارة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.admin-tabs { display:flex; gap:4px; background:var(--surface2); border-radius:12px; padding:4px; margin-bottom:16px; flex-wrap:wrap; }
+.admin-tab { flex:1; min-width:100px; padding:8px 14px; border-radius:10px; border:none; background:transparent; color:var(--text-muted); font-family:'Cairo',sans-serif; font-size:13px; font-weight:700; cursor:pointer; transition:var(--transition); display:flex; align-items:center; justify-content:center; gap:6px; }
+.admin-tab.active { background:var(--surface3); color:var(--text); }
+.admin-tab.active i { color:var(--primary); }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.upload-box { border:2px dashed var(--border); border-radius:10px; padding:16px; text-align:center; cursor:pointer; transition:var(--transition); position:relative; min-height:72px; display:flex; align-items:center; justify-content:center; }
+.upload-box:hover { border-color:var(--primary); }
+.upload-box img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:8px; }
+.upload-box .placeholder { color:var(--text-muted); font-size:12px; z-index:1; }
+.upload-box .placeholder i { font-size:22px; display:block; margin-bottom:3px; }
+.data-table { width:100%; border-collapse:collapse; font-size:12px; }
+.data-table th { background:var(--surface3); padding:9px 10px; text-align:right; font-weight:700; color:var(--text-secondary); border-bottom:1px solid var(--border); font-size:11px; }
+.data-table td { padding:9px 10px; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+.data-table tr:hover td { background:rgba(255,255,255,0.02); }
+.data-table tr:last-child td { border-bottom:none; }
+</style>
+</head>
+<body>
+
+<!-- Admin Password Gate -->
+<div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="text-align:center;margin-bottom:24px;">
+            <i class="fas fa-shield-alt" style="font-size:48px;color:var(--primary);filter:drop-shadow(0 0 20px var(--primary));display:block;margin-bottom:10px;"></i>
+            <h2 style="font-size:20px;font-weight:800;margin-bottom:4px;">لوحة الإدارة</h2>
+            <p style="font-size:13px;color:var(--text-muted);">أدخل كلمة مرور الإدارة للمتابعة</p>
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-lock"></i> كلمة المرور</label>
+            <input type="password" id="adminPassInput" placeholder="كلمة مرور الإدارة" autocomplete="current-password">
+        </div>
+        <div id="gateError" style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--danger);margin-bottom:12px;display:none;">كلمة المرور غير صحيحة</div>
+        <button class="btn btn-lg" style="width:100%;" onclick="checkAdminPass()">
+            <i class="fas fa-unlock"></i> دخول
+        </button>
+        <div style="text-align:center;margin-top:16px;">
+            <a href="/index.html" style="color:var(--text-muted);font-size:13px;"><i class="fas fa-arrow-right"></i> العودة للرئيسية</a>
+        </div>
+    </div>
+</div>
+
+<!-- Admin Content (hidden until password verified) -->
+<div id="adminContent" style="display:none;">
+
+<div class="top-bar">
+    <a href="/index.html" class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <span>GMube Edu</span>
+    </a>
+    <div style="display:flex;gap:6px;margin-right:auto;">
+        <span class="tag tag-green" style="font-size:12px;"><i class="fas fa-shield-alt"></i> مدير</span>
+        <a href="/index.html" class="btn btn-secondary btn-sm"><i class="fas fa-home"></i></a>
+    </div>
+</div>
+
+<div class="page-container" style="padding-top:76px;">
+
+    <div class="stats-grid" id="adminStats" style="margin-bottom:20px;"></div>
+
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-cogs" style="color:var(--primary);"></i> لوحة الإدارة
+    </h2>
+
+    <div class="admin-tabs">
+        <button class="admin-tab active" onclick="showTab('teachers',this)"><i class="fas fa-chalkboard-teacher"></i> الأساتذة</button>
+        <button class="admin-tab" onclick="showTab('students',this)"><i class="fas fa-user-graduate"></i> الطلاب</button>
+        <button class="admin-tab" onclick="showTab('videos',this)"><i class="fas fa-video"></i> الدروس</button>
+    </div>
+
+    <!-- Teachers Tab -->
+    <div id="tab-teachers" class="tab-content active">
+        <div class="card" style="margin-bottom:12px;">
+            <h3 class="section-title" style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+                <i class="fas fa-plus-circle"></i> إضافة أستاذ
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px;">
+                <div class="form-group" style="margin:0;"><label>الاسم</label><input type="text" id="tName" placeholder="اسم الأستاذ"></div>
+                <div class="form-group" style="margin:0;"><label>المادة</label><select id="tSubject"></select></div>
+                <div class="form-group" style="margin:0;"><label>الرمز السري</label><input type="text" id="tSecret" placeholder="رمز الدخول"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px;">
+                <div class="form-group" style="margin:0;">
+                    <label>الصورة الشخصية</label>
+                    <div class="upload-box" onclick="document.getElementById('tAvatar').click()">
+                        <input type="file" id="tAvatar" accept="image/*" style="display:none;" onchange="previewImg(this,'tAvatarPreview','tAvatarPh')">
+                        <div class="placeholder" id="tAvatarPh"><i class="fas fa-camera"></i> صورة</div>
+                        <img id="tAvatarPreview" style="display:none;">
+                    </div>
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label>غلاف القناة</label>
+                    <div class="upload-box" onclick="document.getElementById('tCover').click()">
+                        <input type="file" id="tCover" accept="image/*" style="display:none;" onchange="previewImg(this,'tCoverPreview','tCoverPh')">
+                        <div class="placeholder" id="tCoverPh"><i class="fas fa-image"></i> غلاف</div>
+                        <img id="tCoverPreview" style="display:none;">
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="doAddTeacher()" id="addTBtn"><i class="fas fa-plus"></i> إضافة الأستاذ</button>
+            <div id="tMsg" style="margin-top:8px;font-size:13px;"></div>
+        </div>
+        <div class="card">
+            <div class="table-wrap"><table class="data-table" id="tTable"></table></div>
+        </div>
+    </div>
+
+    <!-- Students Tab -->
+    <div id="tab-students" class="tab-content">
+        <div class="card" style="margin-bottom:12px;">
+            <h3 class="section-title" style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+                <i class="fas fa-plus-circle"></i> إضافة طالب
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+                <div class="form-group" style="margin:0;"><label>الاسم</label><input type="text" id="sName" placeholder="اسم الطالب"></div>
+                <div class="form-group" style="margin:0;"><label>الصف</label><select id="sGrade"></select></div>
+                <div class="form-group" style="margin:0;"><label>الرمز السري</label><input type="text" id="sSecret" placeholder="رمز الدخول"></div>
+            </div>
+            <button class="btn btn-sm" onclick="doAddStudent()"><i class="fas fa-plus"></i> إضافة الطالب</button>
+            <div id="sMsg" style="margin-top:8px;font-size:13px;"></div>
+        </div>
+        <div class="card">
+            <div class="table-wrap"><table class="data-table" id="sTable"></table></div>
+        </div>
+    </div>
+
+    <!-- Videos Tab -->
+    <div id="tab-videos" class="tab-content">
+        <div class="card">
+            <div class="table-wrap"><table class="data-table" id="vTable"></table></div>
+        </div>
+    </div>
+
+</div>
+</div><!-- /adminContent -->
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+/* ===== Admin Password Gate ===== */
+(function() {
+    if (sessionStorage.getItem('gmube_admin_auth') === '1') {
+        document.getElementById('adminGate').style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+        initAdmin();
+    } else {
+        document.getElementById('adminPassInput').addEventListener('keydown', function(e) { if (e.key==='Enter') checkAdminPass(); });
+    }
+})();
+
+function checkAdminPass() {
+    var pass = document.getElementById('adminPassInput').value;
+    if (pass === ADMIN_PASSWORD) {
+        sessionStorage.setItem('gmube_admin_auth', '1');
+        document.getElementById('adminGate').style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+        initAdmin();
+    } else {
+        document.getElementById('gateError').style.display = 'block';
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('adminPassInput').focus();
+    }
+}
+
+/* ===== Admin Logic ===== */
+function initAdmin() {
+    var sub = document.getElementById('tSubject');
+    for (var i=1;i<CATEGORIES.length;i++) sub.innerHTML += '<option value="'+CATEGORIES[i]+'">'+CATEGORIES[i]+'</option>';
+    var gr = document.getElementById('sGrade');
+    GRADES.forEach(function(g) { gr.innerHTML += '<option value="'+g+'">'+g+'</option>'; });
+    loadAll();
+}
+
+function loadAll() {
+    Promise.all([getTeachers(), api('students?order=created_at.desc'), getVideos('الكل')]).then(function(r) {
+        var teachers = r[0]||[], students = r[1]||[], videos = r[2]||[];
+        renderStats(teachers.length, students.length, videos.length);
+        renderTeachers(teachers);
+        renderStudents(students);
+        renderVideos(videos);
+    });
+}
+
+function renderStats(tc, sc, vc) {
+    document.getElementById('adminStats').innerHTML =
+        scard('fa-chalkboard-teacher','var(--primary-glow)','var(--primary)',tc,'أساتذة') +
+        scard('fa-user-graduate','rgba(129,140,248,0.1)','var(--accent)',sc,'طلاب') +
+        scard('fa-video','rgba(251,191,36,0.1)','var(--warning)',vc,'دروس');
+}
+
+function scard(icon, bg, color, val, label) {
+    return '<div class="stat-card"><div class="icon" style="background:'+bg+';color:'+color+'"><i class="fas '+icon+'"></i></div><div class="value">'+val+'</div><div class="label">'+label+'</div></div>';
+}
+
+function renderTeachers(t) {
+    var h = '<thead><tr><th>صورة</th><th>الاسم</th><th>المادة</th><th>الرمز</th><th>إجراء</th></tr></thead><tbody>';
+    if (!t.length) h += '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">لا يوجد أساتذة</td></tr>';
+    else t.forEach(function(r) {
+        h += '<tr><td>' + (r.avatar ? '<img src="'+esc(r.avatar)+'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;">' : '<i class="fas fa-user" style="color:var(--text-muted)"></i>') + '</td>' +
+            '<td>'+esc(r.name)+'</td><td>'+esc(r.subject)+'</td><td><code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:11px;">'+esc(r.secret)+'</code></td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="delTeacher(\''+r.id+'\')"><i class="fas fa-trash"></i></button></td></tr>';
+    });
+    h += '</tbody>';
+    document.getElementById('tTable').innerHTML = h;
+}
+
+function renderStudents(s) {
+    var h = '<thead><tr><th>الاسم</th><th>الصف</th><th>الرمز</th><th>إجراء</th></tr></thead><tbody>';
+    if (!s.length) h += '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">لا يوجد طلاب</td></tr>';
+    else s.forEach(function(r) {
+        h += '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.grade)+'</td>' +
+            '<td><code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:11px;">'+esc(r.secret)+'</code></td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="delStudent(\''+r.id+'\')"><i class="fas fa-trash"></i></button></td></tr>';
+    });
+    h += '</tbody>';
+    document.getElementById('sTable').innerHTML = h;
+}
+
+function renderVideos(v) {
+    var h = '<thead><tr><th>العنوان</th><th>المادة</th><th>الأستاذ</th><th>الصف</th><th>مشاهدات</th><th>إجراء</th></tr></thead><tbody>';
+    if (!v.length) h += '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">لا توجد دروس</td></tr>';
+    else v.forEach(function(r) {
+        h += '<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(r.title)+'</td>' +
+            '<td>'+esc(r.category)+'</td><td>'+esc(r.user_name)+'</td><td>'+esc(r.grade||'')+'</td>' +
+            '<td>'+fmt(r.views||0)+'</td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="delVid('+r.id+')"><i class="fas fa-trash"></i></button></td></tr>';
+    });
+    h += '</tbody>';
+    document.getElementById('vTable').innerHTML = h;
+}
+
+function previewImg(input, imgId, phId) {
+    var f = input.files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById(imgId).src = e.target.result;
+        document.getElementById(imgId).style.display = 'block';
+        document.getElementById(phId).style.display = 'none';
+    };
+    reader.readAsDataURL(f);
+}
+
+function doAddTeacher() {
+    var name = document.getElementById('tName').value.trim();
+    var subject = document.getElementById('tSubject').value;
+    var secret = document.getElementById('tSecret').value.trim();
+    var avatar = document.getElementById('tAvatar').files[0];
+    var cover = document.getElementById('tCover').files[0];
+    var msg = document.getElementById('tMsg');
+    if (!name||!subject||!secret) { msg.innerHTML='<span style="color:var(--danger)">يرجى ملء جميع الحقول</span>'; return; }
+    var btn = document.getElementById('addTBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإضافة...';
+    var proms = [], avatarUrl = null, coverUrl = null;
+    if (avatar) proms.push(uploadThumbnailToTelegram(avatar).then(function(r) { avatarUrl = r.url; }).catch(function(){}));
+    if (cover) proms.push(uploadThumbnailToTelegram(cover).then(function(r) { coverUrl = r.url; }).catch(function(){}));
+    Promise.all(proms).then(function() {
+        return api('teachers', 'POST', { name:name, subject:subject, secret:secret, user_id:'teacher_'+Date.now(), avatar:avatarUrl, cover:coverUrl });
+    }).then(function() {
+        msg.innerHTML = '<span style="color:var(--primary)"><i class="fas fa-check-circle"></i> تم إضافة الأستاذ بنجاح</span>';
+        document.getElementById('tName').value = '';
+        document.getElementById('tSecret').value = '';
+        loadAll();
+    }).catch(function(e) { msg.innerHTML='<span style="color:var(--danger)">فشل: '+esc(e.message)+'</span>'; })
+    .finally(function() { btn.disabled=false; btn.innerHTML='<i class="fas fa-plus"></i> إضافة الأستاذ'; });
+}
+
+function doAddStudent() {
+    var name = document.getElementById('sName').value.trim();
+    var grade = document.getElementById('sGrade').value;
+    var secret = document.getElementById('sSecret').value.trim();
+    var msg = document.getElementById('sMsg');
+    if (!name||!grade||!secret) { msg.innerHTML='<span style="color:var(--danger)">يرجى ملء جميع الحقول</span>'; return; }
+    api('students','POST',{name:name,grade:grade,secret:secret,user_id:'student_'+Date.now()}).then(function() {
+        msg.innerHTML='<span style="color:var(--primary)"><i class="fas fa-check-circle"></i> تم إضافة الطالب بنجاح</span>';
+        document.getElementById('sName').value='';
+        document.getElementById('sSecret').value='';
+        loadAll();
+    }).catch(function(e) { msg.innerHTML='<span style="color:var(--danger)">فشل: '+esc(e.message)+'</span>'; });
+}
+
+function delTeacher(id) { if(confirm('حذف هذا الأستاذ؟')) deleteTeacher(id).then(loadAll).catch(function(e){showToast('فشل الحذف','error');}); }
+function delStudent(id) { if(confirm('حذف هذا الطالب؟')) deleteStudent(id).then(loadAll).catch(function(e){showToast('فشل الحذف','error');}); }
+function delVid(id) { if(confirm('حذف هذا الدرس؟')) deleteVideo(id).then(loadAll).catch(function(e){showToast('فشل الحذف','error');}); }
+
+function showTab(tab, btn) {
+    document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
+    document.querySelectorAll('.admin-tab').forEach(function(b){b.classList.remove('active');});
+    document.getElementById('tab-'+tab).classList.add('active');
+    btn.classList.add('active');
+}
+</script>
+</body>
+</html>

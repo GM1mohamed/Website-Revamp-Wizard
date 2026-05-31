@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu - الأساتذة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.teachers-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }
+.t-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; cursor:pointer; transition:var(--transition); }
+.t-card:hover { border-color:var(--border-hover); transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+.t-card .cover { height:72px; background:linear-gradient(135deg, #0e0e1c, #1a1a28); position:relative; overflow:hidden; }
+.t-card .cover img { width:100%; height:100%; object-fit:cover; }
+.t-card .cover-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, transparent, rgba(7,7,15,0.5)); }
+.t-card .avatar { width:56px; height:56px; border-radius:50%; border:3px solid var(--surface); overflow:hidden; margin:-28px auto 0; position:relative; z-index:1; background:linear-gradient(135deg,var(--primary-dark),var(--primary)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px var(--primary-glow); }
+.t-card .avatar img { width:100%; height:100%; object-fit:cover; }
+.t-card .avatar i { font-size:26px; color:#fff; }
+.t-card .info { padding:10px 14px 16px; text-align:center; }
+.t-card .name { font-size:14px; font-weight:800; margin-bottom:3px; }
+.t-card .subject { font-size:11px; color:var(--text-muted); display:flex; align-items:center; justify-content:center; gap:4px; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="/index.html" class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <span>GMube Edu</span>
+    </a>
+    <div class="search-bar" style="max-width:260px;">
+        <input type="text" id="searchInput" placeholder="ابحث عن أستاذ...">
+        <i class="fas fa-search"></i>
+    </div>
+    <div id="authBtns">
+        <a href="/login.html" class="btn btn-sm" id="loginBtn"><i class="fas fa-sign-in-alt"></i> دخول</a>
+        <div id="userInfo" style="display:none;align-items:center;gap:8px;">
+            <span id="userName" style="font-size:13px;font-weight:700;"></span>
+            <button onclick="logout()" class="btn-icon"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+    </div>
+</div>
+
+<div class="page-container">
+    <div class="section-header">
+        <h2 class="section-title"><i class="fas fa-users"></i> الأساتذة <span class="count" id="countSpan"></span></h2>
+    </div>
+    <div class="teachers-grid" id="grid">
+        <div class="loading-state" style="grid-column:1/-1;"><div class="spinner"></div><span>جاري التحميل...</span></div>
+    </div>
+</div>
+
+<div class="bottom-nav">
+    <a href="/index.html" class="nav-item"><i class="fas fa-home"></i><span>الرئيسية</span></a>
+    <a href="/pages/teachers.html" class="nav-item active"><i class="fas fa-users"></i><span>الأساتذة</span></a>
+    <a href="/login.html" class="nav-item" id="accountNav"><i class="fas fa-user"></i><span>حسابي</span></a>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+var allTeachers = [];
+var session = getSession();
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (session) {
+        document.getElementById('loginBtn').style.display = 'none';
+        document.getElementById('userInfo').style.display = 'flex';
+        document.getElementById('userName').textContent = session.name;
+        document.getElementById('accountNav').href = session.type === 'teacher' ? '/pages/teacher.html' : '/pages/profile.html';
+    }
+    loadTeachers();
+    document.getElementById('searchInput').addEventListener('input', function(e) { filterTeachers(e.target.value.toLowerCase()); });
+});
+
+function loadTeachers() {
+    getTeachers().then(function(t) {
+        allTeachers = t || [];
+        render(allTeachers);
+        document.getElementById('countSpan').textContent = '(' + allTeachers.length + ')';
+    }).catch(function() {
+        document.getElementById('grid').innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-exclamation-triangle"></i><p>فشل تحميل الأساتذة</p></div>';
+    });
+}
+
+function render(list) {
+    var grid = document.getElementById('grid');
+    if (!list.length) { grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-user-slash"></i><p>لا يوجد أساتذة</p></div>'; return; }
+    grid.innerHTML = '';
+    list.forEach(function(t, i) {
+        var card = document.createElement('div');
+        card.className = 't-card fade-in';
+        card.style.animationDelay = (Math.min(i,12)*0.04) + 's';
+        var cover = t.cover ? '<img src="' + esc(t.cover) + '" alt="" onerror="this.remove()"><div class="cover-overlay"></div>' : '<div class="cover-overlay"></div>';
+        var avatar = t.avatar
+            ? '<img src="' + esc(t.avatar) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'">' +
+              '<i class="fas fa-user-circle" style="display:none;"></i>'
+            : '<i class="fas fa-user-circle"></i>';
+        card.innerHTML =
+            '<div class="cover">' + cover + '</div>' +
+            '<div class="avatar">' + avatar + '</div>' +
+            '<div class="info">' +
+                '<div class="name">' + esc(t.name) + '</div>' +
+                '<div class="subject"><i class="fas fa-book"></i> ' + esc(t.subject||'') + '</div>' +
+            '</div>';
+        card.onclick = function() { location.href = '/pages/channel.html?id=' + t.user_id; };
+        grid.appendChild(card);
+    });
+}
+
+function filterTeachers(term) {
+    var filtered = allTeachers.filter(function(t) {
+        return (t.name||'').toLowerCase().includes(term) || (t.subject||'').toLowerCase().includes(term);
+    });
+    render(filtered);
+    document.getElementById('countSpan').textContent = '(' + filtered.length + ')';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu - قائمة التشغيل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.playlist-hero { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:14px; display:flex; align-items:center; gap:16px; }
+.playlist-hero .icon { width:64px; height:64px; background:linear-gradient(135deg,var(--primary-dark),var(--primary)); border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 16px var(--primary-glow); }
+.playlist-hero .icon i { font-size:28px; color:#fff; }
+.playlist-hero .info h2 { font-size:17px; font-weight:800; margin-bottom:4px; }
+.playlist-hero .meta { font-size:12px; color:var(--text-muted); display:flex; gap:12px; flex-wrap:wrap; }
+.list-item { display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); padding:10px 12px; border-radius:var(--radius-sm); margin-bottom:4px; cursor:pointer; transition:var(--transition); }
+.list-item:hover { background:var(--surface2); border-color:var(--border-hover); transform:translateX(-2px); }
+.list-item .num { font-size:14px; font-weight:800; color:var(--text-muted); min-width:22px; text-align:center; flex-shrink:0; }
+.list-item .thumb { width:90px; height:50px; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2); display:flex; align-items:center; justify-content:center; }
+.list-item .thumb img { width:100%; height:100%; object-fit:cover; }
+.list-item .info { flex:1; min-width:0; }
+.list-item .title { font-size:12px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+.list-item .sub { font-size:11px; color:var(--text-muted); display:flex; gap:8px; }
+.view-toggle { display:flex; gap:4px; background:var(--surface2); border-radius:20px; padding:3px; }
+.view-toggle button { padding:5px 14px; border-radius:18px; border:none; background:transparent; color:var(--text-muted); cursor:pointer; font-family:'Cairo',sans-serif; font-size:12px; transition:var(--transition); }
+.view-toggle button.active { background:var(--surface3); color:var(--text); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="/index.html" class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <span>GMube Edu</span>
+    </a>
+    <div style="margin-right:auto;">
+        <button onclick="history.back()" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-right"></i> رجوع</button>
+    </div>
+</div>
+
+<div class="page-container">
+
+    <div id="loadingState" class="loading-state"><div class="spinner"></div><span>جاري التحميل...</span></div>
+
+    <div id="mainContent" style="display:none;">
+        <div id="playlistHero" class="playlist-hero"></div>
+
+        <div id="playlistActions" style="display:none;margin-bottom:14px;display:none;gap:8px;flex-wrap:wrap;"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 class="section-title"><i class="fas fa-list-ol"></i> الفيديوهات <span class="count" id="count"></span></h3>
+            <div class="view-toggle">
+                <button class="active" onclick="setView('list',this)"><i class="fas fa-list"></i></button>
+                <button onclick="setView('grid',this)"><i class="fas fa-th"></i></button>
+            </div>
+        </div>
+
+        <div id="listView"></div>
+        <div class="videos-grid" id="gridView" style="display:none;"></div>
+        <div id="emptyState" class="empty-state" style="display:none;"><i class="fas fa-video-slash"></i><p>لا توجد فيديوهات</p></div>
+    </div>
+
+</div>
+
+<div class="bottom-nav">
+    <a href="/index.html" class="nav-item"><i class="fas fa-home"></i><span>الرئيسية</span></a>
+    <a href="/pages/teachers.html" class="nav-item"><i class="fas fa-users"></i><span>الأساتذة</span></a>
+    <a href="/login.html" class="nav-item" id="accountNav"><i class="fas fa-user"></i><span>حسابي</span></a>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+var playlist = null;
+var videos = [];
+var view = 'list';
+var session = getSession();
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (session) document.getElementById('accountNav').href = session.type === 'teacher' ? '/pages/teacher.html' : '/pages/profile.html';
+    var id = new URLSearchParams(window.location.search).get('id');
+    if (id) loadPlaylist(id);
+    else location.href = '/index.html';
+});
+
+function loadPlaylist(id) {
+    api('playlists?id=eq.' + id).then(function(p) {
+        if (!p || !p.length) { location.href = '/index.html'; return; }
+        playlist = p[0];
+        document.title = 'GMube Edu - ' + playlist.name;
+        api('videos?playlist_id=eq.' + id + '&order=created_at.asc').then(function(v) {
+            videos = v || [];
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            renderPlaylist();
+        });
+    });
+}
+
+function renderPlaylist() {
+    document.getElementById('playlistHero').innerHTML =
+        '<div class="icon"><i class="fas fa-list"></i></div>' +
+        '<div class="info">' +
+            '<h2>' + esc(playlist.name) + '</h2>' +
+            '<div class="meta">' +
+                '<span><i class="fas fa-user-circle"></i> ' + esc(playlist.teacher_name||'') + '</span>' +
+                '<span><i class="fas fa-book"></i> ' + esc(playlist.subject||'') + '</span>' +
+                '<span><i class="fas fa-video"></i> ' + videos.length + ' فيديو</span>' +
+            '</div>' +
+        '</div>';
+
+    if (videos.length) {
+        var actions = document.getElementById('playlistActions');
+        actions.style.display = 'flex';
+        actions.innerHTML =
+            '<button class="btn btn-sm" onclick="playAll()"><i class="fas fa-play"></i> تشغيل الكل</button>' +
+            '<button class="btn btn-secondary btn-sm" onclick="shufflePlay()"><i class="fas fa-random"></i> عشوائي</button>' +
+            '<button class="btn btn-secondary btn-sm" onclick="sharePlaylist()"><i class="fas fa-share"></i> مشاركة</button>';
+    }
+
+    document.getElementById('count').textContent = '(' + videos.length + ')';
+    if (!videos.length) { document.getElementById('emptyState').style.display = 'block'; return; }
+    renderView();
+}
+
+function renderView() { if (view==='list') renderList(); else renderGrid(); }
+
+function renderList() {
+    document.getElementById('listView').style.display = 'block';
+    document.getElementById('gridView').style.display = 'none';
+    var c = document.getElementById('listView');
+    c.innerHTML = '';
+    videos.forEach(function(v, i) {
+        var div = document.createElement('div');
+        div.className = 'list-item';
+        var thumb = v.thumbnail
+            ? '<img src="' + esc(v.thumbnail) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+              '<i class="fas fa-play" style="display:none;color:var(--text-muted)"></i>'
+            : '<i class="fas fa-play" style="color:var(--text-muted)"></i>';
+        div.innerHTML =
+            '<span class="num">' + (i+1) + '</span>' +
+            '<div class="thumb">' + thumb + '</div>' +
+            '<div class="info"><div class="title">' + esc(v.title||'بدون عنوان') + '</div><div class="sub"><span><i class="fas fa-eye"></i> ' + fmt(v.views||0) + '</span><span><i class="fas fa-star" style="color:var(--warning)"></i> ' + Number(v.avg_rating||0).toFixed(1) + '</span></div></div>' +
+            '<i class="fas fa-chevron-left" style="color:var(--text-muted);font-size:11px;flex-shrink:0;"></i>';
+        div.onclick = function() { location.href = '/pages/watch.html?id=' + v.id; };
+        c.appendChild(div);
+    });
+}
+
+function renderGrid() {
+    document.getElementById('listView').style.display = 'none';
+    var c = document.getElementById('gridView');
+    c.style.display = 'grid';
+    c.innerHTML = '';
+    videos.forEach(function(v, i) {
+        var card = document.createElement('div');
+        card.className = 'video-card fade-in';
+        var bg = v.thumbnail
+            ? '<img src="' + esc(v.thumbnail) + '" alt="" onerror="this.parentElement.style.background=\'linear-gradient(135deg,var(--primary-dark),var(--primary))\';this.remove();">'
+            : '<div style="position:absolute;inset:0;background:linear-gradient(135deg,var(--primary-dark),var(--primary));display:flex;align-items:center;justify-content:center;"><i class="fas fa-play-circle" style="font-size:40px;color:rgba(255,255,255,0.6);"></i></div>';
+        card.innerHTML =
+            '<div class="video-thumbnail">' + bg +
+                '<span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.75);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;">' + (i+1) + '</span>' +
+                '<div class="play-overlay"><i class="fas fa-play"></i></div>' +
+            '</div>' +
+            '<div class="video-info"><div class="video-title">' + esc(v.title||'') + '</div><div class="video-meta"><span><i class="fas fa-eye"></i> ' + fmt(v.views||0) + '</span></div></div>';
+        card.onclick = function() { location.href = '/pages/watch.html?id=' + v.id; };
+        c.appendChild(card);
+    });
+}
+
+function setView(v, btn) {
+    view = v;
+    document.querySelectorAll('.view-toggle button').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    renderView();
+}
+
+function playAll() { if (videos.length) location.href = '/pages/watch.html?id=' + videos[0].id; }
+function shufflePlay() { if (videos.length) location.href = '/pages/watch.html?id=' + videos[Math.floor(Math.random()*videos.length)].id; }
+function sharePlaylist() {
+    var url = location.href;
+    if (navigator.share) navigator.share({ title: playlist.name, url: url }).catch(function() {});
+    else navigator.clipboard.writeText(url).then(function() { showToast('تم نسخ الرابط', 'success'); });
+}
+</script>
+</body>
+</html>

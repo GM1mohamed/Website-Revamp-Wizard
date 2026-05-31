@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu - لوحة التحكم</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.teacher-banner { background:linear-gradient(135deg,var(--primary-dark),var(--primary)); border-radius:var(--radius); padding:20px; margin-bottom:16px; display:flex; align-items:center; gap:16px; }
+.teacher-banner .av { width:64px; height:64px; border-radius:50%; border:3px solid rgba(255,255,255,0.3); overflow:hidden; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.teacher-banner .av img { width:100%; height:100%; object-fit:cover; }
+.teacher-banner .av i { font-size:30px; color:#fff; }
+.teacher-banner h2 { font-size:20px; font-weight:800; color:#fff; margin-bottom:2px; }
+.teacher-banner .sub { font-size:13px; color:rgba(255,255,255,0.85); margin-bottom:6px; }
+.teacher-banner .stats { display:flex; gap:10px; flex-wrap:wrap; }
+.teacher-banner .stats span { font-size:11px; background:rgba(255,255,255,0.2); padding:3px 10px; border-radius:12px; color:#fff; }
+.source-selector { display:flex; gap:8px; margin-bottom:14px; background:var(--surface2); padding:6px; border-radius:12px; }
+.source-opt { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:10px; cursor:pointer; transition:var(--transition); border:none; background:transparent; font-family:'Cairo',sans-serif; font-size:13px; font-weight:700; color:var(--text-muted); }
+.source-opt.active { background:linear-gradient(135deg,var(--primary-dark),var(--primary)); color:#fff; }
+.source-opt i { font-size:16px; }
+.upload-box { border:2px dashed var(--border); border-radius:10px; padding:20px; text-align:center; cursor:pointer; transition:var(--transition); position:relative; min-height:90px; display:flex; align-items:center; justify-content:center; }
+.upload-box:hover { border-color:var(--primary); }
+.upload-box img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:8px; }
+.upload-box .placeholder { color:var(--text-muted); font-size:13px; z-index:1; }
+.upload-box .placeholder i { font-size:24px; display:block; margin-bottom:4px; color:var(--text-muted); }
+.info-box { background:var(--primary-glow); border:1px solid rgba(34,214,94,0.25); border-radius:10px; padding:12px 14px; margin-top:10px; font-size:12px; color:var(--text-secondary); line-height:1.7; }
+.info-box i { color:var(--primary); margin-left:5px; }
+.pl-row { display:flex; justify-content:space-between; align-items:center; background:var(--surface2); padding:8px 12px; border-radius:8px; margin-bottom:6px; }
+.pl-row span { font-size:13px; }
+.video-row { background:var(--surface2); border-radius:8px; padding:8px 12px; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
+.video-row .vinfo { flex:1; min-width:0; }
+.video-row .vtitle { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.video-row .vmeta { font-size:11px; color:var(--text-muted); }
+.video-row .vthumb { width:72px; height:40px; border-radius:6px; object-fit:cover; flex-shrink:0; background:var(--surface3); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="/index.html" class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <span>GMube Edu</span>
+    </a>
+    <div style="display:flex;gap:6px;margin-right:auto;">
+        <a href="/pages/profile.html" class="btn btn-secondary btn-sm"><i class="fas fa-user"></i> حسابي</a>
+        <button onclick="logout()" class="btn btn-danger btn-sm"><i class="fas fa-sign-out-alt"></i> خروج</button>
+    </div>
+</div>
+
+<div class="page-container" id="dashboard">
+    <div class="loading-state"><div class="spinner"></div><span>جاري التحميل...</span></div>
+</div>
+
+<div class="bottom-nav">
+    <a href="/index.html" class="nav-item"><i class="fas fa-home"></i><span>الرئيسية</span></a>
+    <a href="/pages/teachers.html" class="nav-item"><i class="fas fa-users"></i><span>الأساتذة</span></a>
+    <a href="/pages/teacher.html" class="nav-item active"><i class="fas fa-tachometer-alt"></i><span>لوحتي</span></a>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+var session = getSession();
+if (!session || session.type !== 'teacher') { location.href = '/login.html'; }
+
+var teacher = null;
+var myVideos = [];
+var myPlaylists = [];
+var currentSource = 'youtube';
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+
+function loadDashboard() {
+    document.getElementById('dashboard').innerHTML = '<div class="loading-state"><div class="spinner"></div><span>جاري التحميل...</span></div>';
+    Promise.all([
+        api('teachers?user_id=eq.' + session.user_id),
+        api('videos?user_id=eq.' + session.user_id + '&order=created_at.desc'),
+        getPlaylists(session.user_id)
+    ]).then(function(r) {
+        if (!r[0] || !r[0].length) { document.getElementById('dashboard').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>لم يُعثر على حساب المعلم</p></div>'; return; }
+        teacher = r[0][0];
+        myVideos = r[1] || [];
+        myPlaylists = r[2] || [];
+        renderDashboard();
+    }).catch(function() {
+        document.getElementById('dashboard').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>فشل تحميل البيانات</p></div>';
+    });
+}
+
+function renderDashboard() {
+    var totalViews = myVideos.reduce(function(s,v) { return s+(v.views||0); }, 0);
+    var avatar = teacher.avatar
+        ? '<img src="' + esc(teacher.avatar) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'">' +
+          '<i class="fas fa-user-circle" style="display:none;font-size:30px;color:#fff;"></i>'
+        : '<i class="fas fa-user-circle" style="font-size:30px;color:#fff;"></i>';
+
+    var catOpts = '';
+    for (var i=1;i<CATEGORIES.length;i++) catOpts += '<option value="'+CATEGORIES[i]+'">'+CATEGORIES[i]+'</option>';
+    var gradeOpts = GRADES.map(function(g) { return '<option value="'+g+'">'+g+'</option>'; }).join('');
+    var plOpts = '<option value="">بدون قائمة</option>' + myPlaylists.map(function(p) { return '<option value="'+p.id+'">'+esc(p.name)+' ('+( p.video_count||0)+')</option>'; }).join('');
+
+    document.getElementById('dashboard').innerHTML =
+
+    /* Banner */
+    '<div class="teacher-banner">' +
+        '<div class="av">' + avatar + '</div>' +
+        '<div>' +
+            '<h2>' + esc(teacher.name) + '</h2>' +
+            '<div class="sub"><i class="fas fa-book"></i> ' + esc(teacher.subject||'') + '</div>' +
+            '<div class="stats">' +
+                '<span><i class="fas fa-video"></i> ' + myVideos.length + ' درس</span>' +
+                '<span><i class="fas fa-eye"></i> ' + fmt(totalViews) + ' مشاهدة</span>' +
+                '<span><i class="fas fa-list"></i> ' + myPlaylists.length + ' قائمة</span>' +
+            '</div>' +
+        '</div>' +
+    '</div>' +
+
+    /* Tabs */
+    '<div class="tabs" id="mainTabs">' +
+        '<button class="tab-btn active" onclick="switchTab(\'upload\',this)"><i class="fas fa-upload"></i> رفع درس</button>' +
+        '<button class="tab-btn" onclick="switchTab(\'playlists\',this)"><i class="fas fa-list"></i> قوائم التشغيل</button>' +
+        '<button class="tab-btn" onclick="switchTab(\'myvideos\',this)"><i class="fas fa-video"></i> دروسي</button>' +
+    '</div>' +
+
+    /* Upload Panel */
+    '<div id="tab-upload" class="tab-panel active">' +
+        '<div class="card">' +
+            '<div class="source-selector">' +
+                '<button class="source-opt active" id="ytBtn" onclick="selectSource(\'youtube\')"><i class="fab fa-youtube"></i> YouTube</button>' +
+                '<button class="source-opt" id="tgBtn" onclick="selectSource(\'telegram\')"><i class="fab fa-telegram"></i> Telegram</button>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px;">' +
+                '<div class="form-group" style="margin:0;"><label>عنوان الدرس</label><input type="text" id="vTitle" placeholder="مثال: درس الجبر - الجزء الأول"></div>' +
+                '<div class="form-group" style="margin:0;"><label>المادة</label><select id="vCat">' + catOpts + '</select></div>' +
+                '<div class="form-group" style="margin:0;"><label>الصف</label><select id="vGrade">' + gradeOpts + '</select></div>' +
+                '<div class="form-group" style="margin:0;"><label>قائمة التشغيل</label><select id="vPlaylist">' + plOpts + '</select></div>' +
+            '</div>' +
+            '<div id="youtubeSection">' +
+                '<div class="form-group" style="margin-bottom:8px;"><label>رابط YouTube</label><input type="text" id="youtubeUrl" placeholder="https://youtu.be/..."></div>' +
+                '<div class="info-box"><i class="fas fa-info-circle"></i> <strong>كيفية الحصول على الرابط:</strong><br>1. ارفع الفيديو على YouTube (اختر "غير مدرج")<br>2. اضغط "مشاركة" ← انسخ الرابط والصقه هنا</div>' +
+            '</div>' +
+            '<div id="telegramSection" style="display:none;">' +
+                '<div class="form-group" style="margin-bottom:4px;"><label>ملف الفيديو (حتى 50 ميجابايت)</label><input type="file" id="vFile" accept="video/*"></div>' +
+                '<small style="color:var(--text-muted);font-size:11px;"><i class="fas fa-info-circle"></i> الحد الأقصى 50 ميجابايت — للفيديوهات الأكبر استخدم YouTube</small>' +
+            '</div>' +
+            '<div style="margin-top:12px;">' +
+                '<div class="form-group" style="margin:0;max-width:220px;">' +
+                    '<label>صورة الغلاف (اختياري)</label>' +
+                    '<div class="upload-box" id="thumbBox" onclick="document.getElementById(\'thumbFile\').click()">' +
+                        '<input type="file" id="thumbFile" accept="image/*" style="display:none;" onchange="previewThumb(this)">' +
+                        '<div class="placeholder"><i class="fas fa-image"></i> اضغط لرفع صورة</div>' +
+                        '<img id="thumbPreview" style="display:none;">' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+                '<button class="btn" onclick="doUploadVideo()" id="uploadBtn"><i class="fas fa-cloud-upload-alt"></i> رفع الدرس</button>' +
+            '</div>' +
+            '<div id="progress" style="display:none;margin-top:12px;">' +
+                '<div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0;"></div></div>' +
+                '<small id="progText" style="color:var(--text-muted);">0%</small>' +
+            '</div>' +
+            '<div id="uploadMsg" style="margin-top:10px;font-size:13px;"></div>' +
+        '</div>' +
+    '</div>' +
+
+    /* Playlists Panel */
+    '<div id="tab-playlists" class="tab-panel">' +
+        '<div class="card">' +
+            '<div style="display:flex;gap:8px;margin-bottom:14px;">' +
+                '<input type="text" id="plName" placeholder="اسم القائمة الجديدة" style="flex:1;">' +
+                '<button class="btn btn-sm" onclick="doCreatePlaylist()"><i class="fas fa-plus"></i> إضافة</button>' +
+            '</div>' +
+            '<div id="plList">' + renderPlaylists() + '</div>' +
+        '</div>' +
+    '</div>' +
+
+    /* My Videos Panel */
+    '<div id="tab-myvideos" class="tab-panel">' +
+        '<div id="myVideosList">' + renderMyVideos() + '</div>' +
+    '</div>';
+}
+
+function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-'+tabId).classList.add('active');
+}
+
+function selectSource(src) {
+    currentSource = src;
+    document.getElementById('ytBtn').className = 'source-opt' + (src==='youtube'?' active':'');
+    document.getElementById('tgBtn').className = 'source-opt' + (src==='telegram'?' active':'');
+    document.getElementById('youtubeSection').style.display = src==='youtube' ? 'block' : 'none';
+    document.getElementById('telegramSection').style.display = src==='telegram' ? 'block' : 'none';
+}
+
+function previewThumb(input) {
+    var f = input.files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('thumbPreview').src = e.target.result;
+        document.getElementById('thumbPreview').style.display = 'block';
+        document.querySelector('#thumbBox .placeholder').style.display = 'none';
+    };
+    reader.readAsDataURL(f);
+}
+
+/* FIX: renamed from createPlaylist to avoid conflict with API createPlaylist() */
+function doCreatePlaylist() {
+    var name = document.getElementById('plName').value.trim();
+    if (!name) { showToast('أدخل اسم القائمة', 'error'); return; }
+    createPlaylist(name, session.user_id, session.name, teacher.subject).then(function() {
+        document.getElementById('plName').value = '';
+        showToast('تم إنشاء القائمة', 'success');
+        loadDashboard();
+    }).catch(function(e) { showToast('فشل: ' + e.message, 'error'); });
+}
+
+/* FIX: renamed from deletePlaylist to avoid conflict with API deletePlaylist() */
+function doDeletePlaylist(id) {
+    if (!confirm('هل أنت متأكد من حذف هذه القائمة؟')) return;
+    deletePlaylist(id).then(function() { showToast('تم الحذف', 'success'); loadDashboard(); }).catch(function(e) { showToast('فشل الحذف', 'error'); });
+}
+
+/* FIX: renamed from deleteVideo to avoid conflict with API deleteVideo() */
+function doDeleteVideo(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا الدرس؟')) return;
+    deleteVideo(id).then(function() { showToast('تم الحذف', 'success'); loadDashboard(); }).catch(function(e) { showToast('فشل الحذف', 'error'); });
+}
+
+async function doUploadVideo() {
+    var title = document.getElementById('vTitle').value.trim();
+    var category = document.getElementById('vCat').value;
+    var grade = document.getElementById('vGrade').value;
+    var playlistId = document.getElementById('vPlaylist').value || null;
+    var thumbFile = document.getElementById('thumbFile').files[0];
+    var msgDiv = document.getElementById('uploadMsg');
+    msgDiv.innerHTML = '';
+
+    if (!title || !category || !grade) { msgDiv.innerHTML = '<span style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i> يرجى ملء جميع الحقول المطلوبة</span>'; return; }
+
+    var btn = document.getElementById('uploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الرفع...';
+
+    try {
+        var thumbnailUrl = null;
+        if (thumbFile) {
+            var thumbResult = await uploadThumbnailToTelegram(thumbFile);
+            thumbnailUrl = thumbResult.url;
+        }
+
+        if (currentSource === 'youtube') {
+            var ytUrl = document.getElementById('youtubeUrl').value.trim();
+            if (!ytUrl) throw new Error('يرجى إدخال رابط YouTube');
+            var yId = extractYouTubeId(ytUrl);
+            if (!yId) throw new Error('رابط YouTube غير صحيح');
+            var embedUrl = 'https://www.youtube.com/embed/' + yId + '?modestbranding=1&rel=0&controls=1';
+            await addVideo(title, category, grade, embedUrl, yId, session.user_id, session.name, playlistId, null, thumbnailUrl, SOURCE_TYPES.YOUTUBE);
+            document.getElementById('youtubeUrl').value = '';
+        } else {
+            var file = document.getElementById('vFile').files[0];
+            if (!file) throw new Error('يرجى اختيار ملف فيديو');
+            document.getElementById('progress').style.display = 'block';
+            var uploadResult = await uploadToTelegram(file, function(p) {
+                document.getElementById('progFill').style.width = p + '%';
+                document.getElementById('progText').textContent = p + '%';
+            });
+            await addVideo(title, category, grade, uploadResult.url, uploadResult.file_id, session.user_id, session.name, playlistId, null, thumbnailUrl, SOURCE_TYPES.TELEGRAM);
+            document.getElementById('vFile').value = '';
+            document.getElementById('progress').style.display = 'none';
+        }
+
+        document.getElementById('vTitle').value = '';
+        document.getElementById('thumbFile').value = '';
+        document.getElementById('thumbPreview').style.display = 'none';
+        document.querySelector('#thumbBox .placeholder').style.display = 'block';
+
+        msgDiv.innerHTML = '<span style="color:var(--primary)"><i class="fas fa-check-circle"></i> تم رفع الدرس بنجاح!</span>';
+        showToast('تم رفع الدرس بنجاح', 'success');
+        loadDashboard();
+    } catch(err) {
+        msgDiv.innerHTML = '<span style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i> ' + esc(err.message||'خطأ غير معروف') + '</span>';
+        document.getElementById('progress').style.display = 'none';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> رفع الدرس';
+    }
+}
+
+function renderPlaylists() {
+    if (!myPlaylists.length) return '<div class="empty-state" style="padding:24px;"><i class="fas fa-list"></i><p>لا توجد قوائم تشغيل</p><small>أضف قائمتك الأولى أعلاه</small></div>';
+    return myPlaylists.map(function(p) {
+        return '<div class="pl-row">' +
+            '<span><i class="fas fa-list" style="color:var(--primary);margin-left:6px;"></i>' + esc(p.name) + ' <span style="color:var(--text-muted);font-size:11px;">(' + (p.video_count||0) + ' فيديو)</span></span>' +
+            '<div style="display:flex;gap:4px;">' +
+                '<a href="/pages/playlist.html?id=' + p.id + '" class="btn btn-secondary btn-sm"><i class="fas fa-eye"></i></a>' +
+                '<button class="btn btn-danger btn-sm" onclick="doDeletePlaylist(\'' + p.id + '\')"><i class="fas fa-trash"></i></button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function renderMyVideos() {
+    if (!myVideos.length) return '<div class="empty-state" style="padding:36px;"><i class="fas fa-video-slash"></i><p>لا توجد دروس</p><small>ارفع درسك الأول من تبويب "رفع درس"</small></div>';
+    return myVideos.map(function(v) {
+        return '<div class="video-row">' +
+            (v.thumbnail ? '<img class="vthumb" src="' + esc(v.thumbnail) + '" alt="" onerror="this.style.display=\'none\'">' : '') +
+            '<div class="vinfo">' +
+                '<div class="vtitle">' + esc(v.title||'بدون عنوان') + '</div>' +
+                '<div class="vmeta"><i class="fas fa-tag"></i> ' + esc(v.category||'') + ' · <i class="fas fa-eye"></i> ' + fmt(v.views||0) + ' · <i class="fas fa-graduation-cap"></i> ' + esc(v.grade||'') + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+                '<a href="/pages/watch.html?id=' + v.id + '" class="btn btn-secondary btn-sm"><i class="fas fa-eye"></i></a>' +
+                '<button class="btn btn-danger btn-sm" onclick="doDeleteVideo(\'' + v.id + '\')"><i class="fas fa-trash"></i></button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+</script>
+</body>
+</html>

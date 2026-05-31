@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "GMube Edu"
+version = "1.0.0"
+id = "artifacts/gmube-edu"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24720
+
+[services.development]
+run = "pnpm --filter @workspace/gmube-edu run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gmube-edu", "run", "build" ]
+publicDir = "artifacts/gmube-edu/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24720"
+BASE_PATH = "/"

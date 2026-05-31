@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu - قناة الأستاذ</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.sort-btns { display:flex; gap:4px; }
+.sort-btn { background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); padding:5px 12px; border-radius:16px; cursor:pointer; font-family:'Cairo',sans-serif; font-size:11px; font-weight:600; transition:var(--transition); }
+.sort-btn.active { background:linear-gradient(135deg,var(--primary-dark),var(--primary)); border-color:transparent; color:#fff; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="/index.html" class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <span>GMube Edu</span>
+    </a>
+    <div style="display:flex;gap:6px;margin-right:auto;">
+        <a href="/pages/teachers.html" class="btn btn-secondary btn-sm"><i class="fas fa-users"></i> الأساتذة</a>
+        <a href="/index.html" class="btn btn-secondary btn-sm"><i class="fas fa-home"></i></a>
+    </div>
+</div>
+
+<div class="page-container">
+
+    <div id="loadingState" class="loading-state"><div class="spinner"></div><span>جاري التحميل...</span></div>
+
+    <div id="mainContent" style="display:none;">
+        <div class="channel-info-bar">
+            <div class="channel-cover" id="coverDiv"></div>
+            <div class="channel-info-content" id="channelInfo"></div>
+        </div>
+
+        <div id="playlistsRow" style="display:none;margin-bottom:16px;">
+            <div class="section-header">
+                <h3 class="section-title"><i class="fas fa-list"></i> قوائم التشغيل</h3>
+            </div>
+            <div class="playlist-scroll" id="playlistsScroll"></div>
+        </div>
+
+        <div class="section-header">
+            <h3 class="section-title">
+                <i class="fas fa-video"></i> الدروس
+                <span class="count" id="videoCount"></span>
+            </h3>
+            <div class="sort-btns">
+                <button class="sort-btn active" onclick="sortVideos('newest',this)">الأحدث</button>
+                <button class="sort-btn" onclick="sortVideos('popular',this)">الأكثر مشاهدة</button>
+                <button class="sort-btn" onclick="sortVideos('rating',this)">الأعلى تقييماً</button>
+            </div>
+        </div>
+
+        <div class="videos-grid" id="teacherVideos"></div>
+        <div id="noVideos" class="empty-state" style="display:none;"><i class="fas fa-video-slash"></i><p>لا توجد دروس</p></div>
+    </div>
+
+    <div id="errorState" class="empty-state" style="display:none;">
+        <i class="fas fa-exclamation-triangle"></i><p>الأستاذ غير موجود</p>
+        <a href="/pages/teachers.html" class="btn btn-sm" style="margin-top:12px;">قائمة الأساتذة</a>
+    </div>
+
+</div>
+
+<div class="bottom-nav">
+    <a href="/index.html" class="nav-item"><i class="fas fa-home"></i><span>الرئيسية</span></a>
+    <a href="/pages/teachers.html" class="nav-item active"><i class="fas fa-users"></i><span>الأساتذة</span></a>
+    <a href="/login.html" class="nav-item" id="accountNav"><i class="fas fa-user"></i><span>حسابي</span></a>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+var teacher = null;
+var videos = [];
+var playlists = [];
+var session = getSession();
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (session) document.getElementById('accountNav').href = session.type === 'teacher' ? '/pages/teacher.html' : '/pages/profile.html';
+    var id = new URLSearchParams(window.location.search).get('id');
+    if (id) loadChannel(id);
+    else location.href = '/pages/teachers.html';
+});
+
+function loadChannel(teacherId) {
+    api('teachers?user_id=eq.' + teacherId).then(function(t) {
+        if (!t || !t.length) { showError(); return; }
+        teacher = t[0];
+        document.title = 'GMube Edu - ' + teacher.name;
+        Promise.all([
+            api('videos?user_id=eq.' + teacherId + '&order=created_at.desc'),
+            getPlaylists(teacherId)
+        ]).then(function(r) {
+            videos = r[0] || [];
+            playlists = r[1] || [];
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            renderAll();
+        });
+    }).catch(function() { showError(); });
+}
+
+function renderAll() {
+    var coverDiv = document.getElementById('coverDiv');
+    coverDiv.innerHTML = teacher.cover
+        ? '<img src="' + esc(teacher.cover) + '" alt="" onerror="this.remove()"><div class="cover-overlay"></div>'
+        : '<div class="cover-overlay"></div>';
+
+    var avatar = teacher.avatar
+        ? '<img src="' + esc(teacher.avatar) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'">' +
+          '<i class="fas fa-user-circle" style="display:none;font-size:36px;color:#fff;"></i>'
+        : '<i class="fas fa-user-circle" style="font-size:36px;color:#fff;"></i>';
+
+    var totalViews = 0, totalLikes = 0;
+    videos.forEach(function(v) { totalViews += v.views||0; totalLikes += v.likes||0; });
+
+    document.getElementById('channelInfo').innerHTML =
+        '<div class="channel-avatar">' + avatar + '</div>' +
+        '<div class="channel-details">' +
+            '<h2>' + esc(teacher.name) + '</h2>' +
+            '<div class="subject"><i class="fas fa-book"></i> ' + esc(teacher.subject||'') + '</div>' +
+            '<div class="channel-stats">' +
+                '<div class="stat"><i class="fas fa-video"></i> <strong>' + videos.length + '</strong> درس</div>' +
+                '<div class="stat"><i class="fas fa-eye"></i> <strong>' + fmt(totalViews) + '</strong> مشاهدة</div>' +
+                '<div class="stat"><i class="fas fa-thumbs-up"></i> <strong>' + fmt(totalLikes) + '</strong> إعجاب</div>' +
+            '</div>' +
+        '</div>';
+
+    if (playlists.length) {
+        document.getElementById('playlistsRow').style.display = 'block';
+        var ps = document.getElementById('playlistsScroll');
+        ps.innerHTML = '';
+        playlists.forEach(function(p) {
+            var a = document.createElement('a');
+            a.className = 'playlist-chip';
+            a.href = '/pages/playlist.html?id=' + p.id;
+            a.innerHTML = '<i class="fas fa-list"></i><div class="pl-name">' + esc(p.name) + '</div><div class="pl-count">' + (p.video_count||0) + ' فيديو</div>';
+            ps.appendChild(a);
+        });
+    }
+
+    renderVideos(videos);
+    document.getElementById('videoCount').textContent = '(' + videos.length + ')';
+}
+
+function renderVideos(list) {
+    var grid = document.getElementById('teacherVideos');
+    var empty = document.getElementById('noVideos');
+    if (!list.length) { grid.innerHTML = ''; grid.style.display = 'none'; empty.style.display = 'block'; return; }
+    grid.style.display = 'grid'; empty.style.display = 'none';
+    grid.innerHTML = '';
+    list.forEach(function(v, i) {
+        var card = document.createElement('div');
+        card.className = 'video-card fade-in';
+        card.style.animationDelay = (Math.min(i,12)*0.04) + 's';
+        var bg = v.thumbnail
+            ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy" onerror="this.parentElement.style.background=\'linear-gradient(135deg,var(--primary-dark),var(--primary))\';this.remove();">'
+            : '<div style="position:absolute;inset:0;background:linear-gradient(135deg,var(--primary-dark),var(--primary));display:flex;align-items:center;justify-content:center;"><i class="fas fa-play-circle" style="font-size:40px;color:rgba(255,255,255,0.6);"></i></div>';
+        card.innerHTML =
+            '<div class="video-thumbnail">' + bg +
+                '<div class="play-overlay"><i class="fas fa-play"></i></div>' +
+                (v.grade ? '<span class="badge">' + esc(v.grade) + '</span>' : '') +
+            '</div>' +
+            '<div class="video-info">' +
+                '<div class="video-title">' + esc(v.title||'بدون عنوان') + '</div>' +
+                '<div class="video-meta">' +
+                    '<span><i class="fas fa-tag"></i> ' + esc(v.category||'') + '</span>' +
+                    '<span><i class="fas fa-eye"></i> ' + fmt(v.views||0) + '</span>' +
+                '</div>' +
+            '</div>';
+        card.onclick = function() { location.href = '/pages/watch.html?id=' + v.id; };
+        grid.appendChild(card);
+    });
+}
+
+function sortVideos(type, btn) {
+    document.querySelectorAll('.sort-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    var sorted = videos.slice();
+    if (type === 'popular') sorted.sort(function(a,b) { return (b.views||0)-(a.views||0); });
+    else if (type === 'rating') sorted.sort(function(a,b) { return (b.avg_rating||0)-(a.avg_rating||0); });
+    else sorted.sort(function(a,b) { return new Date(b.created_at)-new Date(a.created_at); });
+    renderVideos(sorted);
+}
+
+function showError() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').style.display = 'block';
+}
+</script>
+</body>
+</html>

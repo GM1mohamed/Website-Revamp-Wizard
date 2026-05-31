@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="/index.html" class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <span>GMube Edu</span>
+    </a>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="ابحث عن درس...">
+        <i class="fas fa-search"></i>
+    </div>
+    <div id="authBtns">
+        <a href="/login.html" class="btn btn-sm" id="loginBtn"><i class="fas fa-sign-in-alt"></i> دخول</a>
+        <div id="userInfo" style="display:none;align-items:center;gap:8px;">
+            <span id="userName" style="font-size:13px;font-weight:700;"></span>
+            <a href="#" id="dashboardLink" class="btn btn-secondary btn-sm"><i class="fas fa-tachometer-alt"></i></a>
+            <button onclick="logout()" class="btn-icon"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+    </div>
+</div>
+
+<div class="page-container">
+
+    <div style="margin-bottom:8px;">
+        <div class="section-header">
+            <h3 class="section-title"><i class="fas fa-users"></i> الأساتذة</h3>
+            <a href="/pages/teachers.html" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> الكل</a>
+        </div>
+        <div class="teachers-strip" id="teachersStrip">
+            <div class="loading-state" style="padding:8px 16px;"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>
+        </div>
+    </div>
+
+    <div class="categories-scroll" id="categoriesBar"></div>
+
+    <div class="section-header" style="margin-top:4px;">
+        <h3 class="section-title"><i class="fas fa-video"></i> الدروس <span class="count" id="videoCount"></span></h3>
+        <button class="btn btn-secondary btn-sm" onclick="toggleSort()" id="sortBtn"><i class="fas fa-sort-amount-down"></i> <span id="sortLabel">الأحدث</span></button>
+    </div>
+
+    <div class="videos-grid" id="videosGrid">
+        <div class="loading-state" style="grid-column:1/-1;"><div class="spinner"></div><span>جاري التحميل...</span></div>
+    </div>
+    <div id="emptyState" class="empty-state" style="display:none;">
+        <i class="fas fa-video-slash"></i><p>لا توجد دروس</p><small>جرب فئة أخرى</small>
+    </div>
+
+</div>
+
+<div class="bottom-nav">
+    <a href="/index.html" class="nav-item active"><i class="fas fa-home"></i><span>الرئيسية</span></a>
+    <a href="/pages/teachers.html" class="nav-item"><i class="fas fa-users"></i><span>الأساتذة</span></a>
+    <a href="/login.html" class="nav-item" id="accountNav"><i class="fas fa-user"></i><span>حسابي</span></a>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+var allVideos = [];
+var activeCategory = 'الكل';
+var sortMode = 'newest';
+var sortLabels = { newest: 'الأحدث', popular: 'الأكثر مشاهدة', rating: 'الأعلى تقييماً' };
+var session = getSession();
+
+document.addEventListener('DOMContentLoaded', function() {
+    setupAuth();
+    buildCategories();
+    loadTeachers();
+    loadVideos();
+    document.getElementById('searchInput').addEventListener('input', filterVideos);
+});
+
+function setupAuth() {
+    if (session) {
+        document.getElementById('loginBtn').style.display = 'none';
+        document.getElementById('userInfo').style.display = 'flex';
+        document.getElementById('userName').textContent = session.name;
+        var link = document.getElementById('dashboardLink');
+        if (session.type === 'teacher') { link.href = '/pages/teacher.html'; link.title = 'لوحة المعلم'; }
+        else { link.href = '/pages/profile.html'; link.innerHTML = '<i class="fas fa-user-circle"></i>'; link.title = 'ملفي'; }
+        document.getElementById('accountNav').href = session.type === 'teacher' ? '/pages/teacher.html' : '/pages/profile.html';
+        document.getElementById('accountNav').querySelector('span').textContent = session.type === 'teacher' ? 'لوحتي' : 'حسابي';
+    }
+}
+
+function buildCategories() {
+    var bar = document.getElementById('categoriesBar');
+    CATEGORIES.forEach(function(cat) {
+        var btn = document.createElement('button');
+        btn.className = 'cat-btn' + (cat === 'الكل' ? ' active' : '');
+        btn.textContent = cat;
+        btn.onclick = function() {
+            document.querySelectorAll('.cat-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            activeCategory = cat;
+            filterVideos();
+        };
+        bar.appendChild(btn);
+    });
+}
+
+function loadTeachers() {
+    getTeachers().then(function(teachers) {
+        var strip = document.getElementById('teachersStrip');
+        strip.innerHTML = '';
+        if (!teachers || !teachers.length) { strip.innerHTML = '<span style="color:var(--text-muted);font-size:13px;padding:8px;">لا يوجد أساتذة</span>'; return; }
+        teachers.forEach(function(t) {
+            var chip = document.createElement('a');
+            chip.className = 'teacher-chip';
+            chip.href = '/pages/channel.html?id=' + t.user_id;
+            var av = t.avatar
+                ? '<img src="' + esc(t.avatar) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+                  '<i class="fas fa-user-circle" style="display:none;font-size:24px;color:var(--primary);"></i>'
+                : '<i class="fas fa-user-circle" style="font-size:24px;color:var(--primary);"></i>';
+            chip.innerHTML = '<div class="avatar-wrap"><div class="avatar-inner">' + av + '</div></div><span class="name">' + esc(t.name) + '</span>';
+            strip.appendChild(chip);
+        });
+    });
+}
+
+function loadVideos() {
+    getVideos('الكل').then(function(videos) {
+        allVideos = videos || [];
+        filterVideos();
+    }).catch(function() {
+        document.getElementById('videosGrid').innerHTML = '';
+        document.getElementById('emptyState').style.display = 'block';
+    });
+}
+
+function filterVideos() {
+    var q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    var filtered = allVideos;
+    if (activeCategory !== 'الكل') filtered = filtered.filter(function(v) { return v.category === activeCategory; });
+    if (q) filtered = filtered.filter(function(v) { return (v.title||'').toLowerCase().includes(q) || (v.user_name||'').toLowerCase().includes(q) || (v.category||'').toLowerCase().includes(q); });
+    if (sortMode === 'popular') filtered = filtered.slice().sort(function(a,b) { return (b.views||0)-(a.views||0); });
+    else if (sortMode === 'rating') filtered = filtered.slice().sort(function(a,b) { return (b.avg_rating||0)-(a.avg_rating||0); });
+    renderVideos(filtered);
+}
+
+function toggleSort() {
+    var modes = ['newest','popular','rating'];
+    sortMode = modes[(modes.indexOf(sortMode)+1) % modes.length];
+    document.getElementById('sortLabel').textContent = sortLabels[sortMode];
+    filterVideos();
+}
+
+function renderVideos(list) {
+    var grid = document.getElementById('videosGrid');
+    var empty = document.getElementById('emptyState');
+    document.getElementById('videoCount').textContent = '(' + list.length + ')';
+    if (!list.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    grid.innerHTML = '';
+    list.forEach(function(v, i) {
+        var card = document.createElement('div');
+        card.className = 'video-card fade-in';
+        card.style.animationDelay = (Math.min(i,12)*0.04)+'s';
+        var bg = v.thumbnail
+            ? '<img src="' + esc(v.thumbnail) + '" alt="" loading="lazy" class="thumb-img" onerror="this.style.display=\'none\'">'
+            : '';
+        card.innerHTML =
+            '<div class="video-thumbnail">' + bg +
+                '<div class="play-overlay"><i class="fas fa-play"></i></div>' +
+                (v.grade ? '<span class="badge">' + esc(v.grade) + '</span>' : '') +
+            '</div>' +
+            '<div class="video-info">' +
+                '<div class="video-title">' + esc(v.title || 'بدون عنوان') + '</div>' +
+                '<div class="video-meta">' +
+                    '<span><i class="fas fa-tag"></i> ' + esc(v.category||'') + '</span>' +
+                    '<span><i class="fas fa-eye"></i> ' + fmt(v.views||0) + '</span>' +
+                    (v.avg_rating > 0 ? '<span><i class="fas fa-star" style="color:var(--warning)"></i> ' + Number(v.avg_rating||0).toFixed(1) + '</span>' : '') +
+                '</div>' +
+            '</div>' +
+            '<div class="video-teacher" onclick="event.stopPropagation();location.href=\'/pages/channel.html?id=' + esc(v.user_id) + '\'">' +
+                '<i class="fas fa-user-circle"></i><span>' + esc(v.user_name||'') + '</span>' +
+            '</div>';
+        card.onclick = function() { location.href = '/pages/watch.html?id=' + v.id; };
+        grid.appendChild(card);
+    });
+}
+</script>
+</body>
+</html>

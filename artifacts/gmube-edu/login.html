@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMube Edu - تسجيل الدخول</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="login-page">
+    <div class="login-card">
+        <div class="login-logo">
+            <i class="fas fa-graduation-cap"></i>
+            <h1>GMube Edu</h1>
+            <p>منصة الدروس التعليمية</p>
+        </div>
+
+        <div class="toggle-type" id="typeToggle">
+            <button class="active" onclick="setType('student',this)" id="studentBtn">
+                <i class="fas fa-user-graduate"></i> طالب
+            </button>
+            <button onclick="setType('teacher',this)" id="teacherBtn">
+                <i class="fas fa-chalkboard-teacher"></i> أستاذ
+            </button>
+        </div>
+
+        <div class="form-group">
+            <label><i class="fas fa-user"></i> الاسم</label>
+            <input type="text" id="nameInput" placeholder="اكتب اسمك الكامل" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-lock"></i> الرمز السري</label>
+            <input type="password" id="secretInput" placeholder="الرمز السري">
+        </div>
+
+        <div id="errorMsg" style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--danger);margin-bottom:14px;display:none;"></div>
+
+        <button class="btn btn-lg" style="width:100%;" onclick="doLogin()" id="loginBtn">
+            <i class="fas fa-sign-in-alt"></i> دخول
+        </button>
+
+        <div style="text-align:center;margin-top:20px;">
+            <a href="/index.html" style="color:var(--text-muted);font-size:13px;"><i class="fas fa-arrow-right"></i> العودة للرئيسية</a>
+        </div>
+
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:10px;">
+                <i class="fas fa-info-circle"></i> لا تملك حساباً؟ تواصل مع الإدارة
+            </p>
+        </div>
+    </div>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/error-handler.js"></script>
+<script>
+var userType = 'student';
+
+if (getSession()) {
+    var s = getSession();
+    location.href = s.type === 'teacher' ? '/pages/teacher.html' : '/pages/profile.html';
+}
+
+function setType(type, btn) {
+    userType = type;
+    document.querySelectorAll('.toggle-type button').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('errorMsg').style.display = 'none';
+}
+
+function doLogin() {
+    var name = document.getElementById('nameInput').value.trim();
+    var secret = document.getElementById('secretInput').value.trim();
+    var errDiv = document.getElementById('errorMsg');
+    var btn = document.getElementById('loginBtn');
+
+    errDiv.style.display = 'none';
+    if (!name || !secret) { errDiv.textContent = 'يرجى ملء جميع الحقول'; errDiv.style.display = 'block'; return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الدخول...';
+
+    login(userType, name, secret).then(function(session) {
+        location.href = session.type === 'teacher' ? '/pages/teacher.html' : '/pages/profile.html';
+    }).catch(function(err) {
+        errDiv.textContent = err.message || 'بيانات الدخول غير صحيحة';
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> دخول';
+    });
+}
+
+document.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>
