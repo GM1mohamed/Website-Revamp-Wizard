@@ -160,37 +160,16 @@ function loadVideo(id) {
     }).catch(function() { showError(); });
 }
 
-function getYouTubeId(url) {
-    if (!url) return null;
-    var m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
-    return m ? m[1] : null;
-}
-
 function renderVideo() {
     var container = document.getElementById('playerContainer');
     if (video.source_type === SOURCE_TYPES.TELEGRAM && video.file_id) {
         container.innerHTML = '<video id="player" playsinline controls><source src="' + esc(video.url) + '" type="video/mp4"></video>';
-        try {
-            new Plyr('#player', {
-                controls: ['play-large','play','progress','current-time','mute','volume','settings','fullscreen'],
-                i18n: { play: 'تشغيل', pause: 'إيقاف', mute: 'كتم', unmute: 'إلغاء الكتم', fullscreen: 'شاشة كاملة' }
-            });
-        } catch(e) {}
+        new Plyr('#player');
     } else if (video.url) {
-        var ytId = getYouTubeId(video.url);
-        if (ytId) {
-            container.innerHTML = '<div id="player" data-plyr-provider="youtube" data-plyr-embed-id="' + esc(ytId) + '"></div>';
-            try {
-                new Plyr('#player', {
-                    controls: ['play-large','play','progress','current-time','mute','volume','settings','fullscreen'],
-                    youtube: { noCookie: true, rel: 0, showinfo: 0, modestbranding: 1 }
-                });
-            } catch(e) {
-                container.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + esc(ytId) + '?rel=0&modestbranding=1" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>';
-            }
-        } else {
-            container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);"><i class="fas fa-exclamation-triangle"></i> رابط غير صحيح</div>';
-        }
+        var embedUrl = getYouTubeEmbedUrl(video.url, { autoplay: false });
+        container.innerHTML = embedUrl
+            ? '<iframe src="' + embedUrl + '" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>'
+            : '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);"><i class="fas fa-exclamation-triangle"></i> رابط غير صحيح</div>';
     } else {
         container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px;">لا يوجد فيديو</div>';
     }
